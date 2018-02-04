@@ -102,7 +102,7 @@ head(spooky_wrd)
 If we wanna get relationships between words, we use n-grams. So far we’ve considered words as individual units, and considered their relationships to sentiments or to documents. However, many interesting text analyses are based on the relationships between words, whether examining which words tend to follow others immediately, or that tend to co-occur within the same documents.
 we’ll explore some of the methods tidytext offers for calculating and visualizing relationships between words in your text dataset. This includes the token = "ngrams" argument, which tokenizes by pairs of adjacent words rather than by individual ones. We’ll also introduce two new packages: ggraph, which extends ggplot2 to construct network plots, and widyr, which calculates pairwise correlations and distances within a tidy data frame. Together these expand our toolbox for exploring text within the tidy data framework.
 
-####(1): Tokenizing by n-gram
+####Tokenizing by n-gram
 
 We’ve been using the unnest_tokens function to tokenize by word, or sometimes by sentence, which is useful for the kinds of sentiment and frequency analyses we’ve been doing so far. But we can also use the function to tokenize into consecutive sequences of words, called n-grams. By seeing how often word X is followed by word Y, we can then build a model of the relationships between them.
 We do this by adding the token = "ngrams" option to unnest_tokens(), and setting n to the number of words we wish to capture in each n-gram. When we set n to 2, we are examining pairs of two consecutive words, often called “bigrams”
@@ -304,59 +304,8 @@ negated_words %>%
 ```
 “not doubt” and “not help” are  the two most common examples, we can also see pairings such as “no hope” and “never forget.” We could combine this to reverse the AFINN scores of each word that follows a negation. 
 
-###2: Visualizing a network of bigrams with ggraph
+###2: Compare Afinn, Bing with NRC
 
-We may be interested in visualizing all of the relationships among words simultaneously, rather than just the top few at a time. As one common visualization, we can arrange the words into a network, or “graph.” Here we’ll be referring to a “graph” not in the sense of a visualization, but as a combination of connected nodes. A graph can be constructed from a tidy object since it has three variables:
-  
-from: the node an edge is coming from
-to: the node an edge is going towards
-weight: A numeric value associated with each edge
-
-The igraph package has many powerful functions for manipulating and analyzing networks. One way to create an igraph object from tidy data is the graph_from_data_frame() function, which takes a data frame of edges with columns for “from”, “to”, and edge attributes (in this case n):
-```{r}
-# original counts
-bigram_counts
-```
-
-```{r}
-# filter for only relatively common combinations
-bigram_graph <- bigram_counts %>%
-  filter(n > 10) %>%
-  graph_from_data_frame()
-
-bigram_graph
-```
-We can convert an igraph object into a ggraph with the ggraph function, after which we add layers to it, much like layers are added in ggplot2. For example, for a basic graph we need to add three layers: nodes, edges, and text
-
-```{r}
-# filter for only relatively common combinations
-set.seed(2017)
-
-ggraph(bigram_graph, layout = "fr") +
-  geom_edge_link() +
-  geom_node_point() +
-  geom_node_text(aes(label = name), vjust = 1, hjust = 1)
-```
-we can visualize some details of the text structure. We also see pairs or triplets along the outside that form common short phrases 
-
-We add the edge_alpha aesthetic to the link layer to make links transparent based on how common or rare the bigram is
-We add directionality with an arrow, constructed using grid::arrow(), including an end_cap option that tells the arrow to end before touching the node
-We tinker with the options to the node layer to make the nodes more attractive (larger, blue points)
-We add a theme that’s useful for plotting networks, theme_void()
-```{r}
-set.seed(2016)
-
-a <- grid::arrow(type = "closed", length = unit(.15, "inches"))
-
-ggraph(bigram_graph, layout = "fr") +
-  geom_edge_link(aes(edge_alpha = n), show.legend = FALSE,
-                 arrow = a, end_cap = circle(.07, 'inches')) +
-  geom_node_point(color = "lightblue", size = 5) +
-  geom_node_text(aes(label = name), vjust = 1, hjust = 1) +
-  theme_void()
-```
-
-###3: Compare Afinn, Bing with NRC
 ```{r}
 # Keep words that have been classified within the NRC lexicon.
 get_sentiments('afinn')
@@ -404,6 +353,9 @@ ggplot(count(sentiments, author, sentiment)) +
   coord_flip() +
   theme(legend.position = "none")
 ```
+Based on afinn, we see the whole text contains more negative words, like score=-5. And Shelly uses more extreme words than others.
+Based on bing, we learn three authors are all negative and Shelly has more negative emotions than other two.
+Based on nrc, we get the number of words for different emotions for whole text. And then, we can get information for different authors. They pay attention on different emotions.
 
 We then use spread() so that we have negative and positive sentiment in separate columns, and lastly calculate a net sentiment (positive - negative).
 And Now we can plot these sentiment scores across the plot trajectory of each author. Notice that we are plotting against the index on the x-axis that keeps track of text.
@@ -460,39 +412,41 @@ bind_rows(afinn_300,
 The three different lexicons for calculating sentiment give results that are different in an absolute sense but have similar relative trajectories through the author. We see similar dips and peaks in sentiment at about the same places in the author, but the absolute values are significantly different. The AFINN lexicon gives the largest absolute values, with high positive values. The lexicon from Bing et al. has lower absolute values and seems to label larger blocks of contiguous positive or negative text. The NRC results are shifted higher relative to the other two, labeling the text more positively, but detects similar relative changes in the text. Sentiment appears to find longer stretches of similar text, but all three agree roughly on the overall trends in the sentiment through a narrative arc
 
 ##Step2: Do sentiment analysis at sentense level
+
 ```{r}
 spooky<-read.csv('../data/spooky.csv',as.is=T)
 spooky.sentense<-spooky%>%
   mutate(sentiment = get_sentiment(text))
-head(spooky.sentense)
 count(spooky.sentense, sentiment)
 count(spooky.sentense, author, sentiment)
 spooky.sentense.data<-spooky.sentense %>%
   mutate(sentiment_type = if_else(sentiment >0, "Positive", if_else(sentiment <0, "Negative", "Neutral")))%>%
   select(sentiment, sentiment_type,text,author)
-head(spooky.sentense.data)
 order.spooky.sentense<-spooky.sentense.data[order(spooky.sentense.data$sentiment),]
-head(order.spooky.sentense,20)
-tail(order.spooky.sentense,20)
 positive.rate<-sum(spooky.sentense.data$sentiment_type=='Positive')/nrow(spooky.sentense.data)
 positive.rate
 count.whole.table<-count(spooky.sentense.data%>%group_by(author))
-as.integer(count.whole.table[count.whole.table$author=='EAP',]$n)
-as.integer(count.whole.table[count.whole.table$author=='HPL',]$n)
-as.integer(count.whole.table[count.whole.table$author=='MWS',]$n)
+interger.EAP<-as.integer(count.whole.table[count.whole.table$author=='EAP',]$n)
+interger.HPL<-as.integer(count.whole.table[count.whole.table$author=='HPL',]$n)
+interger.MWS<-as.integer(count.whole.table[count.whole.table$author=='MWS',]$n)
 count.table<-count(spooky.sentense.data%>%group_by(sentiment_type, author)) 
-frequency.EAP<-count.table[count.table$author=='EAP',]$n/as.integer(count.whole.table[count.whole.table$author=='EAP',]$n)
-frequency.HPL<-count.table[count.table$author=='HPL',]$n/as.integer(count.whole.table[count.whole.table$author=='HPL',]$n)
-frequency.MWS<-count.table[count.table$author=='MWS',]$n/as.integer(count.whole.table[count.whole.table$author=='MWS',]$n)
+frequency.EAP<-count.table[count.table$author=='EAP',]$n/
+  as.integer(count.whole.table[count.whole.table$author=='EAP',]$n)
+frequency.HPL<-count.table[count.table$author=='HPL',]$n/
+  as.integer(count.whole.table[count.whole.table$author=='HPL',]$n)
+frequency.MWS<-count.table[count.table$author=='MWS',]$n/
+  as.integer(count.whole.table[count.whole.table$author=='MWS',]$n)
 n<-c(frequency.MWS,frequency.HPL,frequency.EAP)
 author<-c('MWS','MWS','MWS','HPL','HPL','HPL','EAP','EAP','EAP')
-sentiment_type<-c('Negative','Negative','Negative','Neutral','Neutral','Neutral','Positive','Positive','Positive')
+sentiment_type<-c('Negative','Negative','Negative','Neutral','Neutral','Neutral',
+                  'Positive','Positive','Positive')
 frequency.table<-as.data.frame(cbind(sentiment_type,author,n))
 ggplot(frequency.table)+geom_col(aes(sentiment_type, n, fill = sentiment_type)) + 
   facet_wrap(~ author) +
   coord_flip() +
   theme(legend.position = "none")
 ```
+Proportion of sentences are 'postive' is 43%, and for each author based on sensitive level, Poe, Lovecraft,Shelly are positive, neutral, and negative compare to each other.
 
 # Section 4: Topic Models
 
@@ -511,7 +465,7 @@ length(unique(spooky_wrd$word))
 ```
 The matrix `spooky_wrd_tm` is a sparse matrix with 19467 rows, corresponding to the 19467 ids (or originally, sentences) in the `spooky_wrd` dataframe, and 24941 columns corresponding to the total number of unique words in the `spooky_wrd` dataframe.  So each row of `spooky_wrd_tm` corresponds to one of the original sentences.  The value of the matrix at a certain position is then the number of occurences of that word (determined by the column) in this specific sentence (determined by the row).  Since most sentence/word pairings don't occur, the matrix is sparse meaning there are many zeros.
 
-###step1: Determine how many topics to use
+##step1: Determine how many topics to use
 
 Pick 6, 12 # of topics and to see if there are any dupilicate topics or not.
 
@@ -531,9 +485,10 @@ ggplot(spooky_wrd_topics_5) +
 spooky_wrd_lda_6<-LDA(spooky_wrd_tm,k=6, control = list(seed = 1234))
 spooky_wrd_6_topics <- tidy(spooky_wrd_lda_6, matrix = "beta")
 spooky_wrd_6_topics
-spooky_wrd_6_topics_5 <- ungroup(top_n(group_by(spooky_wrd_topics, topic), 5, beta))
-spooky_wrd_6_topics_5 <- arrange(spooky_wrd_topics_5, topic, -beta)
-spooky_wrd_6_topics_5 <- mutate(spooky_wrd_topics_5, term = reorder(term, beta))
+spooky_wrd_6_topics_5 <- ungroup(top_n(group_by(spooky_wrd_6_topics, topic), 5, beta))
+spooky_wrd_6_topics_5 <- arrange(spooky_wrd_6_topics_5, topic, -beta)
+spooky_wrd_6_topics_5 <- mutate(spooky_wrd_6_topics_5, term = reorder(term, beta))
+head(spooky_wrd_6_topics_5 )
 ggplot(spooky_wrd_6_topics_5) +
   geom_col(aes(term, beta, fill = factor(topic)), show.legend = FALSE) +
   facet_wrap(~ topic, scales = "free", ncol = 4) +
@@ -543,7 +498,31 @@ Compare 6, 12 topic, I would suggest 6, because when u pick 12, there are some k
 
 In the above, we see that the first topic is characterized by words like "love", "earth", and "words" while the third topic includes the word "thousand", and the fifth topic the word "beauty".  Note that the words "eyes" and "time" appear in many topics.  This is the advantage to topic modelling as opposed to clustering when using natural language -- often a word may be likely to appear in documents characterized by multiple topics.
 
-###step2: Use other algorithm: Correlated Topic Model
+##step2: Visualizing author topics
+
+```{r}
+spooky_wrd_docs <- tidy(spooky_wrd_lda_6, matrix = "gamma")
+head(spooky_wrd_docs)
+author_topics <- left_join(spooky_wrd_docs, spooky, by = c("document" = "id"))
+author_topics <- select(author_topics, -text)
+author_topics$topic <- as.factor(author_topics$topic)
+# Chooses the top topic per sentence
+author_topics <- ungroup(top_n(group_by(author_topics, document), 1, gamma))
+
+# Counts the number of sentences represented by each topic per author 
+author_topics <- ungroup(count(group_by(author_topics, author, topic)))
+author_topics
+ggplot(author_topics) +
+  geom_col(aes(topic, n, fill = factor(topic)), show.legend = FALSE) +
+  facet_wrap(~ author, scales = "free", ncol = 4) +
+  coord_flip()
+```
+From plot, we learn different author focus on diffrernt topics. And combine 5 top words for each topics, we can get theme for each author.
+
+# Section 5:Summary
+
+
+
 
 
 

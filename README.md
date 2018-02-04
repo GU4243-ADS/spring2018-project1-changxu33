@@ -55,6 +55,12 @@ pick 6 topics
 
 Pick 6 topics to avoid some duplications.
 
+author topics
+
+![image](figs/topicauthor.png)
+From plot, we learn different author focus on diffrernt topics. And combine 5 top words for each topics, we can get theme for each author.
+
+
 
 
 
