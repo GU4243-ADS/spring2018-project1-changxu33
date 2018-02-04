@@ -43,7 +43,7 @@ We can see how the plot of each author changes toward more positive or negative 
 
 Base on sentense level do sentiment
 
-![image](figs/sentens.png)
+![image](figs/sent.png)
 
 Poe, Lovecraft, Shelly are positive, neutral, and negative compare to each other.
 
