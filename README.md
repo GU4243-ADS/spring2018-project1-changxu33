@@ -26,7 +26,7 @@ Base on bigram level
 
 Get frequency for phrases based on different authors
 
-###Sentiment Analysis
+## Sentiment Analysis
 In the sentiment analysis part, we want to measure what is the proportion of the sentiment was positive or negative.
 
 negate word
@@ -47,7 +47,7 @@ Base on sentense level do sentiment
 
 Poe, Lovecraft, Shelly are positive, neutral, and negative compare to each other.
 
-###Topic Modeling
+## Topic Modeling
 
 pick 6 topics
 
