@@ -87,7 +87,7 @@ str_count(spooky,'he')
 str_count(spooky,'She')
 str_count(spooky,'she')
 ```
-Poe and Shelly did not use he/she, Lovecraft used he more than she.
+Poe and Shelly did not use he/she, Lovecraft used he more than she. I would say Lovecraft may have more people in her story.
 
 ##Step 3: data Cleaning
 
@@ -117,7 +117,8 @@ head(bigrams_MWS)
 bigrams_EAP<-unnest_tokens(spooky[spooky$author=='EAP',],bigram, text, token = "ngrams", n = 2)
 head(bigrams_EAP)
 ```
-This data structure is still a variation of the tidy text format. It is structured as one-token-per-row (with extra metadata, such as author, still preserved), but each token now represents a bigram.
+This data structure is still a variation of the tidy text format. It is structured as one-token-per-row (with extra metadata, such as author, still preserved), but each token now represents a bigram. From these tables, we can get phrases for each author. Then we can analyze the relationship between these phrases. 
+
 
 #####(a): Counting and filtering n-grams
 
@@ -132,8 +133,7 @@ head(bigrams_MWS_count)
 bigrams_HPL_count<-count(bigrams_HPL,bigram,sort=T)
 head(bigrams_HPL_count)
 ```
-
-As one might expect, a lot of the most common bigrams are pairs of common (uninteresting) words, such as of the and in the: what we call “stop-words” . This is a useful time to use tidyr’s separate(), which splits a column into multiple based on a delimiter. This lets us separate it into two columns, “word1” and “word2”, at which point we can remove cases where either is a stop-word.
+As one might expect, a lot of the most common bigrams are pairs of common (uninteresting) words, such as of the and in the: what we call “stop-words” . This is a useful time to use tidyr’s separate(), which splits a column into multiple based on a delimiter. This lets us separate it into two columns, “word1” and “word2”, at which point we can remove cases where either is a stop-word. From these tables, we can learn the frequency of these common words. Like for different authors, ‘of the’, ‘in the’, etc, these phrases appear frequently. We can treat these phrases as redundancies. We’ re more interested in the text without these phrases, then we can focus on main materials and it is easy for us to analyze the differences between each author.
 
 ```{r}
 bigrams_separated<-separate(bigrams,bigram,c("word1", "word2"),sep = " ")
@@ -209,8 +209,9 @@ ggplot(tf_idf_40) +
   labs(x = NULL, y = "TF-IDF values") +
   theme(legend.position ="top",axis.text.x= element_text(angle=45,hjust=1,vjust=0.9))
 ```
+Note that in the above, many of the words recognized by their tf-idf scores are names. This makes sense – if we see text referencing Raymond, Idris, or Perdita, we know almost for sure that MWS is the author. But some non-names stand out. EAP often uses “monsieur” and “jupiter” while HPL uses the words “bearded” and “attic” more frequently than the others. We can also look at the most characteristic terms per author.
 
-Then we can look at the tf-idf of bigrams across spooky datasts. These tf-idf values can be visualized within each author.Note that in the above, many of the words recognized by their tf-idf scores are names.  This makes sense -- if we see text referencing Raymond, Idris, or Perdita, we know almost for sure that MWS is the author.  But some non-names stand out.  EAP often uses "monsieur" and "jupiter" while HPL uses the words "bearded" and "attic" more frequently than the others.  We can also look at the most characteristic terms per author.
+Then we can look at the tf-idf of bigrams across spooky datasts.
 ```{r}
 bigram_tf_idf<-bigrams_united %>%
   count(author,bigram) %>%
@@ -225,7 +226,9 @@ ggplot(bigram_tf_idf_30) +
   coord_flip() +
   labs(y = "TF-IDF values")
 ```
+From this plot, I would say EAP prefer more colorful phrases in order to avoid repeating in his story. HLP and MWS, phrases in their stories are in less variation.
 There are advantages and disadvantages to examining the tf-idf of bigrams rather than individual words. Pairs of consecutive words might capture structure that isn’t present when one is just counting single words, and may provide context that makes tokens more understandable. However, the per-bigram counts are also sparser: a typical two-word pair is rarer than either of its component words.
+
 
 #Section 3:Sentiment Analysis
 
@@ -275,8 +278,7 @@ not_words %>%
   coord_flip()
 ```
 
-The 20 words preceded by ‘not’ that had the greatest contribution to sentiment scores, in either a positive or negative direction
-
+The 20 words preceded by ‘not’ that had the greatest contribution to sentiment scores, in either a positive or negative direction.
 The bigrams “not help” and “not like” were overwhelmingly the largest causes of misidentification, making the text seem much more positive than it is. But we can see phrases like “not fail” and “not die” sometimes suggest text is more negative than it is.
 
 "Not” isn’t the only term that provides some context for the following word. We could pick four common words (or more) that negate the subsequent term, and use the same joining and counting approach to examine all of them at once.
@@ -302,7 +304,8 @@ negated_words %>%
   facet_wrap(~ word1,ncol =4,scales="free")+
   coord_flip()
 ```
-“not doubt” and “not help” are  the two most common examples, we can also see pairings such as “no hope” and “never forget.” We could combine this to reverse the AFINN scores of each word that follows a negation. 
+“not doubt” and “not help” are  the two most common examples, we can also see pairings such as “no hope” and “never forget.” We can see how these negate phrases make text more positive or more negative than it is. 
+ 
 
 ###2: Compare Afinn, Bing with NRC
 
@@ -355,7 +358,7 @@ ggplot(count(sentiments, author, sentiment)) +
 ```
 Based on afinn, we see the whole text contains more negative words, like score=-5. And Shelly uses more extreme words than others.
 Based on bing, we learn three authors are all negative and Shelly has more negative emotions than other two.
-Based on nrc, we get the number of words for different emotions for whole text. And then, we can get information for different authors. They pay attention on different emotions.
+Based on nrc, we get the number of words for different emotions for whole text and for different authors. In this case, it seems like, if we put emotions into more categories, positive is more than other emotions. Then we can compare three different methods for sentiment analysis.
 
 We then use spread() so that we have negative and positive sentiment in separate columns, and lastly calculate a net sentiment (positive - negative).
 And Now we can plot these sentiment scores across the plot trajectory of each author. Notice that we are plotting against the index on the x-axis that keeps track of text.
@@ -372,7 +375,8 @@ ggplot(specialsentiment_300, aes(index , sentiment, fill = author)) +
   facet_wrap(~author, ncol = 2, scales = "free_x")+
   coord_flip()
 ```
-We can see how the plot of each author changes toward more positive or negative sentiment over the trajectory of the story.
+We can see how the plot of each author changes toward more positive or negative sentiment over the trajectory of the story. Like, MWS is more emotional than others with high variation for trajectory of the story.
+
 
 ###3: Comparing the three sentiment dictionaries
 
@@ -446,7 +450,8 @@ ggplot(frequency.table)+geom_col(aes(sentiment_type, n, fill = sentiment_type)) 
   coord_flip() +
   theme(legend.position = "none")
 ```
-Proportion of sentences are 'postive' is 43%, and for each author based on sensitive level, Poe, Lovecraft,Shelly are positive, neutral, and negative compare to each other.
+Proportion of sentences are 'postive' is 43%, and for each author, Poe has more positive sentenses, Lovecraft has more neutral sentences and Shelly has more negative sentenses.
+
 
 # Section 4: Topic Models
 
@@ -496,7 +501,7 @@ ggplot(spooky_wrd_6_topics_5) +
 ```
 Compare 6, 12 topic, I would suggest 6, because when u pick 12, there are some kind of of duplicated. 
 
-In the above, we see that the first topic is characterized by words like "love", "earth", and "words" while the third topic includes the word "thousand", and the fifth topic the word "beauty".  Note that the words "eyes" and "time" appear in many topics.  This is the advantage to topic modelling as opposed to clustering when using natural language -- often a word may be likely to appear in documents characterized by multiple topics.
+In the above, we see that the first topic is characterized by words like "love", "life", and "time" while the third topic includes the word "eyes", and the fifth topic the word "death".  Note that the words "life" and "time" appear in many topics.  This is the advantage to topic modelling as opposed to clustering when using natural language -- often a word may be likely to appear in documents characterized by multiple topics.
 
 ##step2: Visualizing author topics
 
@@ -517,9 +522,9 @@ ggplot(author_topics) +
   facet_wrap(~ author, scales = "free", ncol = 4) +
   coord_flip()
 ```
-From plot, we learn different author focus on diffrernt topics. And combine 5 top words for each topics, we can get theme for each author.
+From plot, we learn different author focus on diffrernt topics. And combine 5 top words for each topics, we can get theme for each author. Like, EAP focuses on topic 6 which is about life, time and friends. HPL focuses on topic 6 and 5 which are about life, time and death. MWS focuses on topic 1 which are about life, time and love. I would say the theme of EAP and HPL are similar, and the theme of MWS is different from others.
 
-# Section 5:Summary
+
 
 
 
