@@ -1,0 +1,130 @@
+---
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+```{r setup, include=FALSE}
+library(ggplot2)
+library(dplyr)
+library(tibble)
+library(tidyr)
+library(stringr)
+library(tidytext)
+library(topicmodels)
+library(RColorBrewer)
+library(wordcloud)
+library(ggridges)
+library(igraph)
+library(ggraph)
+library(sentimentr)
+library(syuzhet)
+library(broom)
+library(urltools)
+library(exploratory)
+library(ldatuning)
+library(purrr)
+library(CTM)
+library(stm)
+library(corpus)
+library(tm)
+library(quanteda)
+source("../libs/multiplot.R")
+spooky<-read.csv('../data/spooky.csv',as.is=T)
+spooky_wrd<-unnest_tokens(spooky,word,text)
+
+bigrams<-unnest_tokens(spooky,bigram, text, token = "ngrams", n = 2)
+bigrams_HPL<-unnest_tokens(spooky[spooky$author=='HPL',],bigram, text, token = "ngrams", n = 2)
+head(bigrams_HPL)
+bigrams_MWS<-unnest_tokens(spooky[spooky$author=='MWS',],bigram, text, token = "ngrams", n = 2)
+head(bigrams_MWS)
+bigrams_EAP<-unnest_tokens(spooky[spooky$author=='EAP',],bigram, text, token = "ngrams", n = 2)
+head(bigrams_EAP)
+
+bigrams_separated<-separate(bigrams,bigram,c("word1", "word2"),sep = " ")
+bigrams_filtered<-bigrams_separated %>%
+  filter(!word1 %in% stop_words$word) %>%
+  filter(!word2 %in% stop_words$word)
+bigrams_united<-bigrams_filtered %>%
+  unite(bigram, word1, word2, sep = " ")
+AFINN<-get_sentiments("afinn")
+```
+
+"Not” isn’t the only term that provides some context for the following word. We could pick four common words (or more) that negate the subsequent term, and use the same joining and counting approach to examine all of them at once.
+```{r}
+negation_words <- c("not", "no", "never", "without")
+
+negated_words<-bigrams_separated %>%
+  filter(word1 %in% negation_words) %>%
+  inner_join(AFINN, by = c(word2 = "word")) %>%
+  count(word1, word2, score, sort = TRUE) 
+head(negated_words)
+negated_words$word1<-as.factor(negated_words$word1)
+unique(negated_words$word1)
+
+negated_words %>%
+  mutate(contribution = n * score) %>%
+  arrange(desc(abs(contribution))) %>%
+  head(20) %>%
+  mutate(word2 = reorder(word2, contribution)) %>%
+  ggplot(aes(word2, n * score, fill = n * score > 0)) +
+  geom_col(show.legend = FALSE) +
+  labs(x = NULL, y = "Sentiment score * number of occurrences")+
+  facet_wrap(~ word1,ncol =4,scales="free")+
+  coord_flip()
+```
+“not doubt” and “not help” are  the two most common examples, we can also see pairings such as “no hope” and “never forget.” We could combine this to reverse the AFINN scores of each word that follows a negation.
+
+###2: Compare Afinn, Bing with NRC
+```{r}
+# Keep words that have been classified within the NRC lexicon.
+get_sentiments('afinn')
+sentiments_afinn <- inner_join(spooky_wrd, get_sentiments('afinn'), by = "word")
+head(sentiments_afinn)
+count(sentiments_afinn, score)
+count(sentiments_afinn, author, score)
+
+ggplot(count(sentiments_afinn, score)) + 
+  geom_col(aes(score, n, fill = score))
+
+ggplot(count(sentiments_afinn, author, score)) + 
+  geom_col(aes(score, n, fill = score)) + 
+  facet_wrap(~ author) +
+  coord_flip() +
+  theme(legend.position = "none")
+
+get_sentiments('bing')
+sentiments_bing<- inner_join(spooky_wrd, get_sentiments('bing'), by = "word")
+head(sentiments_bing)
+count(sentiments_bing,sentiment)
+count(sentiments_bing,author,sentiment)
+
+ggplot(count(sentiments_bing,sentiment)) + 
+  geom_col(aes(sentiment, n, fill = sentiment))
+
+ggplot(count(sentiments_bing, author, sentiment)) + 
+  geom_col(aes(sentiment, n, fill = sentiment)) + 
+  facet_wrap(~ author) +
+  coord_flip() +
+  theme(legend.position = "none")
+
+get_sentiments('nrc')
+sentiments <- inner_join(spooky_wrd, get_sentiments('nrc'), by = "word")
+
+count(sentiments, sentiment)
+count(sentiments, author, sentiment)
+
+ggplot(count(sentiments, sentiment)) + 
+  geom_col(aes(sentiment, n, fill = sentiment))
+
+ggplot(count(sentiments, author, sentiment)) + 
+  geom_col(aes(sentiment, n, fill = sentiment)) + 
+  facet_wrap(~ author) +
+  coord_flip() +
+  theme(legend.position = "none")
+```
+Based on afinn, we see the whole text contains more negative words, like score=-5. And Shelly uses more extreme words than others.
+
+Based on bing, we learn three authors are all negative and Shelly has more negative emotions than other two. 
+
+Based on nrc, we get the number of words for different emotions for whole text. And then, we can get information for different authors. They pay attention on different emotions.

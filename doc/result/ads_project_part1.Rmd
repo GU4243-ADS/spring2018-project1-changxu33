@@ -1,0 +1,122 @@
+---
+title: "Ads_project_part1"
+author: "Cindy Xu UNI:cx2199"
+date: "2/3/2018"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+# Section 1: Check and install needed packages. Load the libraries and functions. 
+```{r, message = F, warning = F}
+packages.used<-c("ggplot2","dplyr","tibble","tidyr","stringr", "tidytext","topicmodels","wordcloud","ggridges",'igraph','ggraph','sentimentr',"devtools",'exploratory',"ldatuning",'CTM','purrr','stm','corpus','tm','quanteda')
+# check packages that need to be installed.
+packages.needed <- setdiff(packages.used, intersect(installed.packages()[,1], packages.used))
+
+# install additional packages
+if(length(packages.needed) > 0) {
+  install.packages(packages.needed, dependencies = TRUE, repos = 'http://cran.us.r-project.org')
+}
+
+#devtools::install_github("exploratory-io/exploratory_func")
+
+library(ggplot2)
+library(dplyr)
+library(tibble)
+library(tidyr)
+library(stringr)
+library(tidytext)
+library(topicmodels)
+library(RColorBrewer)
+library(wordcloud)
+library(ggridges)
+library(igraph)
+library(ggraph)
+library(sentimentr)
+library(syuzhet)
+library(broom)
+library(urltools)
+library(exploratory)
+library(ldatuning)
+library(purrr)
+library(CTM)
+library(stm)
+library(corpus)
+library(tm)
+library(quanteda)
+source("../libs/multiplot.R")
+```
+
+#Section 2:Read in the data
+
+The following code assumes that the dataset `spooky.csv` lives in a `data` folder (and that we are inside a `doc` folder).
+
+## Step 1: Using spooky 
+
+```{r}
+spooky<-read.csv('../data/spooky.csv',as.is=T)
+```
+
+### An overview of the data structure and content
+
+Let's first remind ourselves of the structure of the data.
+```{r}
+dim<-dim(spooky)
+dim
+head(spooky)
+summary(spooky)
+sum(is.na(spooky))
+spooky$author<-as.factor(spooky$author)
+unique(spooky$author)
+```
+
+When we look into spooky data set, it is a 19579 rows and 3 columns dataset. Each row correspoding a unique id number, an excerpt of texts, and author name. Addtionally, there are no missing values. There are three authors, Like `HPL` is Lovecraft, `MWS` is Shelly, and `EAP` is Poe. 
+
+##Step 2: data Processing
+
+###1:Punctuation -- typical sentence structure.  Clauses they have.  Number of commas or semicolons.
+
+```{r}
+str_count(spooky,',')
+str_count(spooky,';' )
+```
+Poe used commas 19578 times, Lovecraft used commas 57798 times, Shelly used commas 19578 times. Poe used semicolons 0 times, Lovecraft used semicolons 5159 times, Shelly used semicolons 0 times.
+
+###2: He/she
+```{r}
+str_count(spooky,'He')
+str_count(spooky,'he')
+str_count(spooky,'She')
+str_count(spooky,'she')
+```
+Poe and Shelly did not use he/she, Lovecraft used he more than she.
+
+##Step 3: data Cleaning
+
+###1: Drop all punctuation and transform all words into lower case.
+```{r}
+spooky_wrd<-unnest_tokens(spooky,word,text)
+head(spooky_wrd)
+```
+
+###2: Bi-grams, n-grams
+
+If we wanna get relationships between words, we use n-grams. So far we’ve considered words as individual units, and considered their relationships to sentiments or to documents. However, many interesting text analyses are based on the relationships between words, whether examining which words tend to follow others immediately.
+we’ll explore some of the methods tidytext offers for calculating and visualizing relationships between words in your text dataset. This includes the token = "ngrams" argument, which tokenizes by pairs of adjacent words rather than by individual ones. We’ll also introduce two new packages: ggraph, which extends ggplot2 to construct network plots, and widyr, which calculates pairwise correlations and distances within a tidy data frame. Together these expand our toolbox for exploring text within the tidy data framework.
+
+####(1): Tokenizing by n-gram
+
+We’ve been using the unnest_tokens function to tokenize by word, or sometimes by sentence, which is useful for the kinds of sentiment and frequency analyses we’ve been doing so far. But we can also use the function to tokenize into consecutive sequences of words, called n-grams. By seeing how often word X is followed by word Y, we can then build a model of the relationships between them.
+We do this by adding the token = "ngrams" option to unnest_tokens(), and setting n to the number of words we wish to capture in each n-gram. When we set n to 2, we are examining pairs of two consecutive words, often called “bigrams”
+```{r}
+# Make a table with one word per row and remove `stop words` (i.e. the common words).
+bigrams<-unnest_tokens(spooky,bigram, text, token = "ngrams", n = 2)
+head(bigrams)
+bigrams_HPL<-unnest_tokens(spooky[spooky$author=='HPL',],bigram, text, token = "ngrams", n = 2)
+head(bigrams_HPL)
+bigrams_MWS<-unnest_tokens(spooky[spooky$author=='MWS',],bigram, text, token = "ngrams", n = 2)
+head(bigrams_MWS)
+bigrams_EAP<-unnest_tokens(spooky[spooky$author=='EAP',],bigram, text, token = "ngrams", n = 2)
+head(bigrams_EAP)
+```
+This data structure is still a variation of the tidy text format. It is structured as one-token-per-row (with extra metadata, such as author, still preserved), but each token now represents a bigram.

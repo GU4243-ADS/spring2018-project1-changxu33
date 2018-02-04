@@ -1,0 +1,88 @@
+---
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+##Step2: Do sentiment analysis at sentense level
+```{r setup, include=FALSE}
+library(ggplot2)
+library(dplyr)
+library(tibble)
+library(tidyr)
+library(stringr)
+library(tidytext)
+library(topicmodels)
+library(RColorBrewer)
+library(wordcloud)
+library(ggridges)
+library(igraph)
+library(ggraph)
+library(sentimentr)
+library(syuzhet)
+library(broom)
+library(urltools)
+library(exploratory)
+library(ldatuning)
+library(purrr)
+library(CTM)
+library(stm)
+library(corpus)
+library(tm)
+library(quanteda)
+source("../libs/multiplot.R")
+spooky<-read.csv('../data/spooky.csv',as.is=T)
+spooky_wrd<-unnest_tokens(spooky,word,text)
+
+bigrams<-unnest_tokens(spooky,bigram, text, token = "ngrams", n = 2)
+bigrams_HPL<-unnest_tokens(spooky[spooky$author=='HPL',],bigram, text, token = "ngrams", n = 2)
+head(bigrams_HPL)
+bigrams_MWS<-unnest_tokens(spooky[spooky$author=='MWS',],bigram, text, token = "ngrams", n = 2)
+head(bigrams_MWS)
+bigrams_EAP<-unnest_tokens(spooky[spooky$author=='EAP',],bigram, text, token = "ngrams", n = 2)
+head(bigrams_EAP)
+
+bigrams_separated<-separate(bigrams,bigram,c("word1", "word2"),sep = " ")
+bigrams_filtered<-bigrams_separated %>%
+  filter(!word1 %in% stop_words$word) %>%
+  filter(!word2 %in% stop_words$word)
+bigrams_united<-bigrams_filtered %>%
+  unite(bigram, word1, word2, sep = " ")
+AFINN<-get_sentiments("afinn")
+```
+
+##Step2: Do sentiment analysis at sentense level
+```{r}
+spooky<-read.csv('../data/spooky.csv',as.is=T)
+spooky.sentense<-spooky%>%
+  mutate(sentiment = get_sentiment(text))
+count(spooky.sentense, sentiment)
+count(spooky.sentense, author, sentiment)
+spooky.sentense.data<-spooky.sentense %>%
+  mutate(sentiment_type = if_else(sentiment >0, "Positive", if_else(sentiment <0, "Negative", "Neutral")))%>%
+  select(sentiment, sentiment_type,text,author)
+order.spooky.sentense<-spooky.sentense.data[order(spooky.sentense.data$sentiment),]
+positive.rate<-sum(spooky.sentense.data$sentiment_type=='Positive')/nrow(spooky.sentense.data)
+positive.rate
+count.whole.table<-count(spooky.sentense.data%>%group_by(author))
+interger.EAP<-as.integer(count.whole.table[count.whole.table$author=='EAP',]$n)
+interger.HPL<-as.integer(count.whole.table[count.whole.table$author=='HPL',]$n)
+interger.MWS<-as.integer(count.whole.table[count.whole.table$author=='MWS',]$n)
+count.table<-count(spooky.sentense.data%>%group_by(sentiment_type, author)) 
+frequency.EAP<-count.table[count.table$author=='EAP',]$n/
+  as.integer(count.whole.table[count.whole.table$author=='EAP',]$n)
+frequency.HPL<-count.table[count.table$author=='HPL',]$n/
+  as.integer(count.whole.table[count.whole.table$author=='HPL',]$n)
+frequency.MWS<-count.table[count.table$author=='MWS',]$n/
+  as.integer(count.whole.table[count.whole.table$author=='MWS',]$n)
+n<-c(frequency.MWS,frequency.HPL,frequency.EAP)
+author<-c('MWS','MWS','MWS','HPL','HPL','HPL','EAP','EAP','EAP')
+sentiment_type<-c('Negative','Negative','Negative','Neutral','Neutral','Neutral',
+                  'Positive','Positive','Positive')
+frequency.table<-as.data.frame(cbind(sentiment_type,author,n))
+ggplot(frequency.table)+geom_col(aes(sentiment_type, n, fill = sentiment_type)) + 
+  facet_wrap(~ author) +
+  coord_flip() +
+  theme(legend.position = "none")
+```
+Proportion of sentences are 'postive' is 43%, and for each author based on sensitive level, Poe, Lovecraft,Shelly are positive, neutral, and negative compare to each other.

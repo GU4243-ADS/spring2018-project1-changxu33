@@ -1,0 +1,549 @@
+---
+title: "Ads_project1_update"
+author: "Cindy Xu UNI:cx2199"
+date: "2/1/2018"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+# Section 1: Check and install needed packages. Load the libraries and functions. 
+```{r, message = F, warning = F}
+packages.used<-c("ggplot2","dplyr","tibble","tidyr","stringr", "tidytext","topicmodels","wordcloud","ggridges",'igraph','ggraph','sentimentr',"devtools",'exploratory',"ldatuning",'CTM','purrr','stm','corpus','tm','quanteda')
+# check packages that need to be installed.
+packages.needed <- setdiff(packages.used, intersect(installed.packages()[,1], packages.used))
+
+# install additional packages
+if(length(packages.needed) > 0) {
+  install.packages(packages.needed, dependencies = TRUE, repos = 'http://cran.us.r-project.org')
+}
+
+#devtools::install_github("exploratory-io/exploratory_func")
+
+library(ggplot2)
+library(dplyr)
+library(tibble)
+library(tidyr)
+library(stringr)
+library(tidytext)
+library(topicmodels)
+library(RColorBrewer)
+library(wordcloud)
+library(ggridges)
+library(igraph)
+library(ggraph)
+library(sentimentr)
+library(syuzhet)
+library(broom)
+library(urltools)
+library(exploratory)
+library(ldatuning)
+library(purrr)
+library(CTM)
+library(stm)
+library(corpus)
+library(tm)
+library(quanteda)
+source("../libs/multiplot.R")
+```
+
+#Section 2:Read in the data
+
+The following code assumes that the dataset `spooky.csv` lives in a `data` folder (and that we are inside a `doc` folder).
+
+## Step 1: Using spooky 
+
+```{r}
+spooky<-read.csv('../data/spooky.csv',as.is=T)
+```
+
+### An overview of the data structure and content
+
+Let's first remind ourselves of the structure of the data.
+```{r}
+dim<-dim(spooky)
+dim
+head(spooky)
+summary(spooky)
+sum(is.na(spooky))
+spooky$author<-as.factor(spooky$author)
+unique(spooky$author)
+```
+When we look into spooky data set, it is a 19579 rows and 3 columns dataset. Each row correspoding a unique id number, an excerpt of texts, and author name. Addtionally, there are no missing values. There are three authors, Like `HPL` is Lovecraft, `MWS` is Shelly, and `EAP` is Poe. 
+
+##Step 2: data Processing
+
+###1:Punctuation -- typical sentence structure.  Clauses they have.  Number of commas or semicolons.
+```{r}
+str_count(spooky,',')
+str_count(spooky,';' )
+```
+Poe used commas 19578 times, Lovecraft used commas 57798 times, Shelly used commas 19578 times. Poe used semicolons 0 times, Lovecraft used semicolons 5159 times, Shelly used semicolons 0 times. clause
+
+###2: He/she
+```{r}
+str_count(spooky,'He')
+str_count(spooky,'he')
+str_count(spooky,'She')
+str_count(spooky,'she')
+```
+Poe and Shelly did not use he/she, Lovecraft used he more than she.
+
+##Step 3: data Cleaning
+
+###1: Drop all punctuation and transform all words into lower case.
+```{r}
+spooky_wrd<-unnest_tokens(spooky,word,text)
+head(spooky_wrd)
+```
+
+###2: Bi-grams, n-grams
+
+If we wanna get relationships between words, we use n-grams. So far we’ve considered words as individual units, and considered their relationships to sentiments or to documents. However, many interesting text analyses are based on the relationships between words, whether examining which words tend to follow others immediately, or that tend to co-occur within the same documents.
+we’ll explore some of the methods tidytext offers for calculating and visualizing relationships between words in your text dataset. This includes the token = "ngrams" argument, which tokenizes by pairs of adjacent words rather than by individual ones. We’ll also introduce two new packages: ggraph, which extends ggplot2 to construct network plots, and widyr, which calculates pairwise correlations and distances within a tidy data frame. Together these expand our toolbox for exploring text within the tidy data framework.
+
+####(1): Tokenizing by n-gram
+
+We’ve been using the unnest_tokens function to tokenize by word, or sometimes by sentence, which is useful for the kinds of sentiment and frequency analyses we’ve been doing so far. But we can also use the function to tokenize into consecutive sequences of words, called n-grams. By seeing how often word X is followed by word Y, we can then build a model of the relationships between them.
+We do this by adding the token = "ngrams" option to unnest_tokens(), and setting n to the number of words we wish to capture in each n-gram. When we set n to 2, we are examining pairs of two consecutive words, often called “bigrams”
+```{r}
+# Make a table with one word per row and remove `stop words` (i.e. the common words).
+bigrams<-unnest_tokens(spooky,bigram, text, token = "ngrams", n = 2)
+head(bigrams)
+bigrams_HPL<-unnest_tokens(spooky[spooky$author=='HPL',],bigram, text, token = "ngrams", n = 2)
+head(bigrams_HPL)
+bigrams_MWS<-unnest_tokens(spooky[spooky$author=='MWS',],bigram, text, token = "ngrams", n = 2)
+head(bigrams_MWS)
+bigrams_EAP<-unnest_tokens(spooky[spooky$author=='EAP',],bigram, text, token = "ngrams", n = 2)
+head(bigrams_EAP)
+```
+This data structure is still a variation of the tidy text format. It is structured as one-token-per-row (with extra metadata, such as author, still preserved), but each token now represents a bigram.
+
+#####(a): Counting and filtering n-grams
+
+Our usual tidy tools apply equally well to n-gram analysis. We can examine the most common bigrams using dplyr’s count():
+```{r}
+bigrams_count<-count(bigrams,bigram,sort=T)
+head(bigrams_count)
+bigrams_EAP_count<-count(bigrams_EAP,bigram,sort=T)
+head(bigrams_EAP_count)
+bigrams_MWS_count<-count(bigrams_MWS,bigram,sort=T)
+head(bigrams_MWS_count)
+bigrams_HPL_count<-count(bigrams_HPL,bigram,sort=T)
+head(bigrams_HPL_count)
+```
+
+As one might expect, a lot of the most common bigrams are pairs of common (uninteresting) words, such as of the and in the: what we call “stop-words” . This is a useful time to use tidyr’s separate(), which splits a column into multiple based on a delimiter. This lets us separate it into two columns, “word1” and “word2”, at which point we can remove cases where either is a stop-word.
+
+```{r}
+bigrams_separated<-separate(bigrams,bigram,c("word1", "word2"),sep = " ")
+bigrams_filtered<-bigrams_separated %>%
+  filter(!word1 %in% stop_words$word) %>%
+  filter(!word2 %in% stop_words$word)
+
+# new bigram counts:
+bigram_counts<-bigrams_filtered %>% 
+  count(word1,word2,sort=T)
+head(bigram_counts)
+
+bigrams_HPL_separated<-separate(bigrams_HPL,bigram,c("word1", "word2"),sep = " ")
+bigrams_HPL_filtered<-bigrams_HPL_separated %>%
+  filter(!word1 %in% stop_words$word) %>%
+  filter(!word2 %in% stop_words$word)
+
+# new bigram counts:
+bigram_HPL_counts<-bigrams_HPL_filtered %>% 
+  count(word1,word2,sort=T)
+head(bigram_HPL_counts)
+
+bigrams_MWS_separated<-separate(bigrams_MWS,bigram,c("word1", "word2"),sep = " ")
+bigrams_MWS_filtered<-bigrams_MWS_separated %>%
+  filter(!word1 %in% stop_words$word) %>%
+  filter(!word2 %in% stop_words$word)
+
+# new bigram counts:
+bigram_MWS_counts<-bigrams_MWS_filtered %>% 
+  count(word1,word2,sort=T)
+head(bigram_MWS_counts)
+
+bigrams_EAP_separated<-separate(bigrams_EAP,bigram,c("word1", "word2"),sep = " ")
+bigrams_EAP_filtered<-bigrams_EAP_separated %>%
+  filter(!word1 %in% stop_words$word) %>%
+  filter(!word2 %in% stop_words$word)
+
+# new bigram counts:
+bigram_EAP_counts<-bigrams_EAP_filtered %>% 
+  count(word1,word2,sort=T)
+head(bigram_EAP_counts)
+```
+We can see that these phrases are the most common pairs in spooky data set.
+
+In other analyses, we may want to work with the recombined words. tidyr’s unite() function is the inverse of separate(), and lets us recombine the columns into one. Thus, “separate/filter/count/unite” let us find the most common bigrams not containing stop-words.
+```{r}
+bigrams_united<-bigrams_filtered %>%
+  unite(bigram, word1, word2, sep = " ")
+head(bigrams_united)
+```
+
+#####(b): Analyzing bigrams
+
+A bigram can also be treated as a term in a document in the same way that we treated individual words. For example, we can look at the tf-idf of bigrams across spooky dataset. 
+
+TF stands for term frequency or how often a word appears in a text and it is what is studied above in the word cloud. IDF stands for inverse document frequncy, and it is a way to pay more attention to words that are rare within the entire set of text data that is more sophisticated than simply removing stop words.  Multiplying these two values together calculates a term's tf-idf, which is the frequency of a term adjusted for how rarely it is used. 
+We'll use tf-idf as a heuristic index to indicate how frequently a certain author uses a word relative to the frequency that all the authors use the word.  Therefore we will find words that are characteristic for a specific author, a good thing to have if we are interested in solving the author identification problem.
+```{r}
+spooky_wrd <- anti_join(spooky_wrd, stop_words, by = "word")
+frequency<-count(spooky_wrd,author,word)
+tf_idf<-bind_tf_idf(frequency,word,author,n)
+head(tf_idf)
+tail(tf_idf)
+
+tf_idf<-arrange(tf_idf,desc(tf_idf))
+tf_idf<-mutate(tf_idf, word = factor(word,levels= rev(unique(word))))
+
+# Grab the top fourty tf_idf scores in all the words 
+tf_idf_40<- top_n(tf_idf,40,tf_idf)
+
+ggplot(tf_idf_40) +
+  geom_col(aes(word,tf_idf,fill = author)) +
+  labs(x = NULL, y = "TF-IDF values") +
+  theme(legend.position ="top",axis.text.x= element_text(angle=45,hjust=1,vjust=0.9))
+```
+
+Then we can look at the tf-idf of bigrams across spooky datasts. These tf-idf values can be visualized within each author.Note that in the above, many of the words recognized by their tf-idf scores are names.  This makes sense -- if we see text referencing Raymond, Idris, or Perdita, we know almost for sure that MWS is the author.  But some non-names stand out.  EAP often uses "monsieur" and "jupiter" while HPL uses the words "bearded" and "attic" more frequently than the others.  We can also look at the most characteristic terms per author.
+```{r}
+bigram_tf_idf<-bigrams_united %>%
+  count(author,bigram) %>%
+  bind_tf_idf(bigram,author,n) %>%
+  arrange(desc(tf_idf))
+bigram_tf_idf_30<-head(bigram_tf_idf,30)
+ggplot(bigram_tf_idf_30) +
+  geom_col(aes(bigram,tf_idf, fill = author)) +
+  labs(x = NULL, y = "bigram_tf_idf") +
+  theme(legend.position = "none") +
+  facet_wrap(~ author,ncol =3,scales="free")+
+  coord_flip() +
+  labs(y = "TF-IDF values")
+```
+There are advantages and disadvantages to examining the tf-idf of bigrams rather than individual words. Pairs of consecutive words might capture structure that isn’t present when one is just counting single words, and may provide context that makes tokens more understandable. However, the per-bigram counts are also sparser: a typical two-word pair is rarer than either of its component words.
+
+#Section 3:Sentiment Analysis
+
+##Step1:word level
+
+###1: Using bigrams to provide context in sentiment analysis 
+
+Our sentiment analysis approach in simply counted the appearance of positive or negative words, according to a reference lexicon. One of the problems with this approach is that a word’s context can matter nearly as much as its presence. For example, the words “happy” and “like” will be counted as positive, even in a sentence like “I’m not happy and I don’t like it!”
+
+Now that we have the data organized into bigrams, it’s easy to tell how often words are preceded by a word like “not”:
+```{r}
+bigrams_separated %>%
+  filter(word1 == "not") %>%
+  count(word1, word2, sort = TRUE)
+```
+By performing sentiment analysis on the bigram data, we can examine how often sentiment-associated words are preceded by “not” or other negating words. We could use this to ignore or even reverse their contribution to the sentiment score.
+
+Let’s use the AFINN lexicon for sentiment analysis, which you may recall gives a numeric sentiment score for each word, with positive or negative numbers indicating the direction of the sentiment.
+```{r}
+AFINN<-get_sentiments("afinn")
+AFINN
+```
+
+We can then examine the most frequent words that were preceded by “not” and were associated with a sentiment.
+```{r}
+not_words<-bigrams_separated %>%
+  filter(word1 == "not") %>%
+  inner_join(AFINN, by = c(word2 = "word")) %>%
+  count(word2, score, sort = TRUE) %>%
+  ungroup()
+not_words
+```
+
+For example, the most common sentiment-associated word to follow “not” was “help”, which would normally have a (positive) score of 2.
+
+It’s worth asking which words contributed the most in the “wrong” direction. To compute that, we can multiply their score by the number of times they appear (so that a word with a score of +3 occurring 10 times has as much impact as a word with a sentiment score of +1 occurring 30 times). We visualize the result with a bar plot.
+```{r}
+not_words %>%
+  mutate(contribution = n * score) %>%
+  arrange(desc(abs(contribution))) %>%
+  head(20) %>%
+  mutate(word2 = reorder(word2, contribution)) %>%
+  ggplot(aes(word2, n * score, fill = n * score > 0)) +
+  geom_col(show.legend = FALSE) +
+  xlab("Words preceded by \"not\"") +
+  ylab("Sentiment score * number of occurrences") +
+  coord_flip()
+```
+
+The 20 words preceded by ‘not’ that had the greatest contribution to sentiment scores, in either a positive or negative direction
+
+The bigrams “not help” and “not like” were overwhelmingly the largest causes of misidentification, making the text seem much more positive than it is. But we can see phrases like “not fail” and “not die” sometimes suggest text is more negative than it is.
+
+"Not” isn’t the only term that provides some context for the following word. We could pick four common words (or more) that negate the subsequent term, and use the same joining and counting approach to examine all of them at once.
+```{r}
+negation_words <- c("not", "no", "never", "without")
+
+negated_words<-bigrams_separated %>%
+  filter(word1 %in% negation_words) %>%
+  inner_join(AFINN, by = c(word2 = "word")) %>%
+  count(word1, word2, score, sort = TRUE) 
+head(negated_words)
+negated_words$word1<-as.factor(negated_words$word1)
+unique(negated_words$word1)
+
+negated_words %>%
+  mutate(contribution = n * score) %>%
+  arrange(desc(abs(contribution))) %>%
+  head(20) %>%
+  mutate(word2 = reorder(word2, contribution)) %>%
+  ggplot(aes(word2, n * score, fill = n * score > 0)) +
+  geom_col(show.legend = FALSE) +
+  labs(x = NULL, y = "Sentiment score * number of occurrences")+
+  facet_wrap(~ word1,ncol =4,scales="free")+
+  coord_flip()
+```
+“not doubt” and “not help” are  the two most common examples, we can also see pairings such as “no hope” and “never forget.” We could combine this to reverse the AFINN scores of each word that follows a negation. 
+
+###2: Visualizing a network of bigrams with ggraph
+
+We may be interested in visualizing all of the relationships among words simultaneously, rather than just the top few at a time. As one common visualization, we can arrange the words into a network, or “graph.” Here we’ll be referring to a “graph” not in the sense of a visualization, but as a combination of connected nodes. A graph can be constructed from a tidy object since it has three variables:
+  
+from: the node an edge is coming from
+to: the node an edge is going towards
+weight: A numeric value associated with each edge
+
+The igraph package has many powerful functions for manipulating and analyzing networks. One way to create an igraph object from tidy data is the graph_from_data_frame() function, which takes a data frame of edges with columns for “from”, “to”, and edge attributes (in this case n):
+```{r}
+# original counts
+bigram_counts
+```
+
+```{r}
+# filter for only relatively common combinations
+bigram_graph <- bigram_counts %>%
+  filter(n > 10) %>%
+  graph_from_data_frame()
+
+bigram_graph
+```
+We can convert an igraph object into a ggraph with the ggraph function, after which we add layers to it, much like layers are added in ggplot2. For example, for a basic graph we need to add three layers: nodes, edges, and text
+
+```{r}
+# filter for only relatively common combinations
+set.seed(2017)
+
+ggraph(bigram_graph, layout = "fr") +
+  geom_edge_link() +
+  geom_node_point() +
+  geom_node_text(aes(label = name), vjust = 1, hjust = 1)
+```
+we can visualize some details of the text structure. We also see pairs or triplets along the outside that form common short phrases 
+
+We add the edge_alpha aesthetic to the link layer to make links transparent based on how common or rare the bigram is
+We add directionality with an arrow, constructed using grid::arrow(), including an end_cap option that tells the arrow to end before touching the node
+We tinker with the options to the node layer to make the nodes more attractive (larger, blue points)
+We add a theme that’s useful for plotting networks, theme_void()
+```{r}
+set.seed(2016)
+
+a <- grid::arrow(type = "closed", length = unit(.15, "inches"))
+
+ggraph(bigram_graph, layout = "fr") +
+  geom_edge_link(aes(edge_alpha = n), show.legend = FALSE,
+                 arrow = a, end_cap = circle(.07, 'inches')) +
+  geom_node_point(color = "lightblue", size = 5) +
+  geom_node_text(aes(label = name), vjust = 1, hjust = 1) +
+  theme_void()
+```
+
+###3: Compare Afinn, Bing with NRC
+```{r}
+# Keep words that have been classified within the NRC lexicon.
+get_sentiments('afinn')
+sentiments_afinn <- inner_join(spooky_wrd, get_sentiments('afinn'), by = "word")
+head(sentiments_afinn)
+count(sentiments_afinn, score)
+count(sentiments_afinn, author, score)
+
+ggplot(count(sentiments_afinn, score)) + 
+  geom_col(aes(score, n, fill = score))
+
+ggplot(count(sentiments_afinn, author, score)) + 
+  geom_col(aes(score, n, fill = score)) + 
+  facet_wrap(~ author) +
+  coord_flip() +
+  theme(legend.position = "none")
+
+get_sentiments('bing')
+sentiments_bing<- inner_join(spooky_wrd, get_sentiments('bing'), by = "word")
+head(sentiments_bing)
+count(sentiments_bing,sentiment)
+count(sentiments_bing,author,sentiment)
+
+ggplot(count(sentiments_bing,sentiment)) + 
+  geom_col(aes(sentiment, n, fill = sentiment))
+
+ggplot(count(sentiments_bing, author, sentiment)) + 
+  geom_col(aes(sentiment, n, fill = sentiment)) + 
+  facet_wrap(~ author) +
+  coord_flip() +
+  theme(legend.position = "none")
+
+get_sentiments('nrc')
+sentiments <- inner_join(spooky_wrd, get_sentiments('nrc'), by = "word")
+
+count(sentiments, sentiment)
+count(sentiments, author, sentiment)
+
+ggplot(count(sentiments, sentiment)) + 
+  geom_col(aes(sentiment, n, fill = sentiment))
+
+ggplot(count(sentiments, author, sentiment)) + 
+  geom_col(aes(sentiment, n, fill = sentiment)) + 
+  facet_wrap(~ author) +
+  coord_flip() +
+  theme(legend.position = "none")
+```
+
+We then use spread() so that we have negative and positive sentiment in separate columns, and lastly calculate a net sentiment (positive - negative).
+And Now we can plot these sentiment scores across the plot trajectory of each author. Notice that we are plotting against the index on the x-axis that keeps track of text.
+```{r}
+head(spooky_wrd)
+specialsentiment<-spooky_wrd%>%inner_join(get_sentiments("bing")) %>%
+  count(index=id, author, sentiment)%>%
+  spread(sentiment, n, fill = 0) %>%
+  mutate(sentiment = positive - negative)
+specialsentiment_300<-head(specialsentiment,300)
+
+ggplot(specialsentiment_300, aes(index , sentiment, fill = author)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~author, ncol = 2, scales = "free_x")+
+  coord_flip()
+```
+We can see how the plot of each author changes toward more positive or negative sentiment over the trajectory of the story.
+
+###4: Comparing the three sentiment dictionaries
+
+With several options for sentiment lexicons, you might want some more information on which one is appropriate for your purposes. Let’s use all three sentiment lexicons and examine how the sentiment changes across the author.
+```{r}
+afinn_method<-spooky_wrd%>% 
+  inner_join(get_sentiments("afinn")) %>% 
+  group_by(index =id) %>% 
+  summarise(sentiment = sum(score)) %>% 
+  mutate(method = "AFINN")
+afinn_300<-head(afinn_method,300)
+bing_method<-spooky_wrd%>% 
+  inner_join(get_sentiments("bing")) %>%
+  mutate(method = "Bing et al.") %>%
+  count(method, index =id, sentiment) %>%
+  spread(sentiment, n, fill = 0) %>%
+  mutate(sentiment = positive - negative)
+bing_300<-head(bing_method,300)
+nrc_method<-spooky_wrd%>%
+  inner_join(get_sentiments("nrc") %>%
+               filter(sentiment %in% c("positive","negative"))%>%
+               mutate(method = "NRC")) %>%
+  count(method, index =id, sentiment) %>%
+  spread(sentiment, n, fill = 0) %>%
+  mutate(sentiment = positive - negative)
+nrc_300<-head(nrc_method,300)
+```
+
+We now have an estimate of the net sentiment (positive - negative) in each chunk of the text for each sentiment lexicon. Let’s bind them together and visualize them. 
+```{r}
+bind_rows(afinn_300, 
+          bing_300, nrc_300) %>%
+  ggplot(aes(index, sentiment, fill = method)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~method, ncol = 1, scales = "free_y")
+```
+The three different lexicons for calculating sentiment give results that are different in an absolute sense but have similar relative trajectories through the author. We see similar dips and peaks in sentiment at about the same places in the author, but the absolute values are significantly different. The AFINN lexicon gives the largest absolute values, with high positive values. The lexicon from Bing et al. has lower absolute values and seems to label larger blocks of contiguous positive or negative text. The NRC results are shifted higher relative to the other two, labeling the text more positively, but detects similar relative changes in the text. Sentiment appears to find longer stretches of similar text, but all three agree roughly on the overall trends in the sentiment through a narrative arc
+
+##Step2: Do sentiment analysis at sentense level
+```{r}
+spooky<-read.csv('../data/spooky.csv',as.is=T)
+spooky.sentense<-spooky%>%
+  mutate(sentiment = get_sentiment(text))
+head(spooky.sentense)
+count(spooky.sentense, sentiment)
+count(spooky.sentense, author, sentiment)
+spooky.sentense.data<-spooky.sentense %>%
+  mutate(sentiment_type = if_else(sentiment >0, "Positive", if_else(sentiment <0, "Negative", "Neutral")))%>%
+  select(sentiment, sentiment_type,text,author)
+head(spooky.sentense.data)
+order.spooky.sentense<-spooky.sentense.data[order(spooky.sentense.data$sentiment),]
+head(order.spooky.sentense,20)
+tail(order.spooky.sentense,20)
+positive.rate<-sum(spooky.sentense.data$sentiment_type=='Positive')/nrow(spooky.sentense.data)
+positive.rate
+count.whole.table<-count(spooky.sentense.data%>%group_by(author))
+as.integer(count.whole.table[count.whole.table$author=='EAP',]$n)
+as.integer(count.whole.table[count.whole.table$author=='HPL',]$n)
+as.integer(count.whole.table[count.whole.table$author=='MWS',]$n)
+count.table<-count(spooky.sentense.data%>%group_by(sentiment_type, author)) 
+frequency.EAP<-count.table[count.table$author=='EAP',]$n/as.integer(count.whole.table[count.whole.table$author=='EAP',]$n)
+frequency.HPL<-count.table[count.table$author=='HPL',]$n/as.integer(count.whole.table[count.whole.table$author=='HPL',]$n)
+frequency.MWS<-count.table[count.table$author=='MWS',]$n/as.integer(count.whole.table[count.whole.table$author=='MWS',]$n)
+n<-c(frequency.MWS,frequency.HPL,frequency.EAP)
+author<-c('MWS','MWS','MWS','HPL','HPL','HPL','EAP','EAP','EAP')
+sentiment_type<-c('Negative','Negative','Negative','Neutral','Neutral','Neutral','Positive','Positive','Positive')
+frequency.table<-as.data.frame(cbind(sentiment_type,author,n))
+ggplot(frequency.table)+geom_col(aes(sentiment_type, n, fill = sentiment_type)) + 
+  facet_wrap(~ author) +
+  coord_flip() +
+  theme(legend.position = "none")
+```
+
+# Section 4: Topic Models
+
+We use the `topicmodels` package for this analysis.  Since the `topicmodels` package doesn't use the `tidytext` framework, we first convert our `spooky_wrd` dataframe into a document term matrix (DTM) matrix using `tidytext` tools.
+
+```{r}
+# Counts how many times each word appears in each sentence
+sent_wrd_freqs <- count(spooky_wrd, id, word)
+head(sent_wrd_freqs)
+
+# Creates a DTM matrix
+spooky_wrd_tm <- cast_dtm(sent_wrd_freqs, id, word, n)
+spooky_wrd_tm
+length(unique(spooky_wrd$id))
+length(unique(spooky_wrd$word))
+```
+The matrix `spooky_wrd_tm` is a sparse matrix with 19467 rows, corresponding to the 19467 ids (or originally, sentences) in the `spooky_wrd` dataframe, and 24941 columns corresponding to the total number of unique words in the `spooky_wrd` dataframe.  So each row of `spooky_wrd_tm` corresponds to one of the original sentences.  The value of the matrix at a certain position is then the number of occurences of that word (determined by the column) in this specific sentence (determined by the row).  Since most sentence/word pairings don't occur, the matrix is sparse meaning there are many zeros.
+
+###step1: Determine how many topics to use
+
+Pick 6, 12 # of topics and to see if there are any dupilicate topics or not.
+
+```{r}
+spooky_wrd_lda    <- LDA(spooky_wrd_tm, k = 12, control = list(seed = 1234))
+spooky_wrd_topics <- tidy(spooky_wrd_lda, matrix = "beta")
+spooky_wrd_topics
+spooky_wrd_topics_5 <- ungroup(top_n(group_by(spooky_wrd_topics, topic), 5, beta))
+spooky_wrd_topics_5 <- arrange(spooky_wrd_topics_5, topic, -beta)
+spooky_wrd_topics_5 <- mutate(spooky_wrd_topics_5, term = reorder(term, beta))
+
+ggplot(spooky_wrd_topics_5) +
+  geom_col(aes(term, beta, fill = factor(topic)), show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free", ncol = 4) +
+  coord_flip()
+
+spooky_wrd_lda_6<-LDA(spooky_wrd_tm,k=6, control = list(seed = 1234))
+spooky_wrd_6_topics <- tidy(spooky_wrd_lda_6, matrix = "beta")
+spooky_wrd_6_topics
+spooky_wrd_6_topics_5 <- ungroup(top_n(group_by(spooky_wrd_topics, topic), 5, beta))
+spooky_wrd_6_topics_5 <- arrange(spooky_wrd_topics_5, topic, -beta)
+spooky_wrd_6_topics_5 <- mutate(spooky_wrd_topics_5, term = reorder(term, beta))
+ggplot(spooky_wrd_6_topics_5) +
+  geom_col(aes(term, beta, fill = factor(topic)), show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free", ncol = 4) +
+  coord_flip()
+```
+Compare 6, 12 topic, I would suggest 6, because when u pick 12, there are some kind of of duplicated. 
+
+In the above, we see that the first topic is characterized by words like "love", "earth", and "words" while the third topic includes the word "thousand", and the fifth topic the word "beauty".  Note that the words "eyes" and "time" appear in many topics.  This is the advantage to topic modelling as opposed to clustering when using natural language -- often a word may be likely to appear in documents characterized by multiple topics.
+
+###step2: Use other algorithm: Correlated Topic Model
+
+
+

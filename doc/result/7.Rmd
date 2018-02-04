@@ -1,0 +1,94 @@
+---
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+```{r setup, include=FALSE}
+library(ggplot2)
+library(dplyr)
+library(tibble)
+library(tidyr)
+library(stringr)
+library(tidytext)
+library(topicmodels)
+library(RColorBrewer)
+library(wordcloud)
+library(ggridges)
+library(igraph)
+library(ggraph)
+library(sentimentr)
+library(syuzhet)
+library(broom)
+library(urltools)
+library(exploratory)
+library(ldatuning)
+library(purrr)
+library(CTM)
+library(stm)
+library(corpus)
+library(tm)
+library(quanteda)
+source("../libs/multiplot.R")
+spooky<-read.csv('../data/spooky.csv',as.is=T)
+spooky_wrd<-unnest_tokens(spooky,word,text)
+
+bigrams<-unnest_tokens(spooky,bigram, text, token = "ngrams", n = 2)
+bigrams_HPL<-unnest_tokens(spooky[spooky$author=='HPL',],bigram, text, token = "ngrams", n = 2)
+head(bigrams_HPL)
+bigrams_MWS<-unnest_tokens(spooky[spooky$author=='MWS',],bigram, text, token = "ngrams", n = 2)
+head(bigrams_MWS)
+bigrams_EAP<-unnest_tokens(spooky[spooky$author=='EAP',],bigram, text, token = "ngrams", n = 2)
+head(bigrams_EAP)
+
+bigrams_separated<-separate(bigrams,bigram,c("word1", "word2"),sep = " ")
+bigrams_filtered<-bigrams_separated %>%
+  filter(!word1 %in% stop_words$word) %>%
+  filter(!word2 %in% stop_words$word)
+bigrams_united<-bigrams_filtered %>%
+  unite(bigram, word1, word2, sep = " ")
+```
+
+#####(b): Analyzing bigrams
+
+A bigram can also be treated as a term in a document in the same way that we treated individual words. For example, we can look at the tf-idf of bigrams across spooky dataset. 
+
+TF stands for term frequency or how often a word appears in a text and it is what is studied above in the word cloud. IDF stands for inverse document frequncy, and it is a way to pay more attention to words that are rare within the entire set of text data that is more sophisticated than simply removing stop words.  Multiplying these two values together calculates a term's tf-idf, which is the frequency of a term adjusted for how rarely it is used. 
+We'll use tf-idf as a heuristic index to indicate how frequently a certain author uses a word relative to the frequency that all the authors use the word.  Therefore we will find words that are characteristic for a specific author, a good thing to have if we are interested in solving the author identification problem.
+```{r}
+#get rid of stop words
+spooky_wrd <- anti_join(spooky_wrd, stop_words, by = "word")
+frequency<-count(spooky_wrd,author,word)
+tf_idf<-bind_tf_idf(frequency,word,author,n)
+head(tf_idf)
+tail(tf_idf)
+
+tf_idf<-arrange(tf_idf,desc(tf_idf))
+tf_idf<-mutate(tf_idf, word = factor(word,levels= rev(unique(word))))
+
+# Grab the top fourty tf_idf scores in all the words 
+tf_idf_40<- top_n(tf_idf,40,tf_idf)
+
+ggplot(tf_idf_40) +
+  geom_col(aes(word,tf_idf,fill = author)) +
+  labs(x = NULL, y = "TF-IDF values") +
+  theme(legend.position ="top",axis.text.x= element_text(angle=45,hjust=1,vjust=0.9))
+```
+Note that in the above, many of the words recognized by their tf-idf scores are names.  This makes sense -- if we see text referencing Raymond, Idris, or Perdita, we know almost for sure that MWS is the author.  But some non-names stand out.  EAP often uses "monsieur" and "jupiter" while HPL uses the words "bearded" and "attic" more frequently than the others.  We can also look at the most characteristic terms per author.
+
+Then we can look at the tf-idf of bigrams across spooky datasts. 
+```{r}
+bigram_tf_idf<-bigrams_united %>%
+  count(author,bigram) %>%
+  bind_tf_idf(bigram,author,n) %>%
+  arrange(desc(tf_idf))
+bigram_tf_idf_30<-head(bigram_tf_idf,30)
+ggplot(bigram_tf_idf_30) +
+  geom_col(aes(bigram,tf_idf, fill = author)) +
+  labs(x = NULL, y = "bigram_tf_idf") +
+  theme(legend.position = "none") +
+  facet_wrap(~ author,ncol =3,scales="free")+
+  coord_flip() +
+  labs(y = "TF-IDF values")
+```
+There are advantages and disadvantages to examining the tf-idf of bigrams rather than individual words. Pairs of consecutive words might capture structure that isn’t present when one is just counting single words, and may provide context that makes tokens more understandable. However, the per-bigram counts are also sparser: a typical two-word pair is rarer than either of its component words.

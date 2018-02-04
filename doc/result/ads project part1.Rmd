@@ -1,0 +1,48 @@
+---
+title: "Adsprojectpart1"
+author: "Cindy Xu UNI:cx2199"
+date: "2/3/2018"
+output:
+  pdf_document: default
+  word_document: default
+---
+
+
+```{r, message = F, warning = F}
+packages.used<-c("ggplot2","dplyr","tibble","tidyr","stringr", "tidytext","topicmodels","wordcloud","ggridges",'igraph','ggraph','sentimentr',"devtools",'exploratory',"ldatuning",'CTM','purrr','stm','corpus','tm','quanteda')
+# check packages that need to be installed.
+packages.needed <- setdiff(packages.used, intersect(installed.packages()[,1], packages.used))
+
+# install additional packages
+if(length(packages.needed) > 0) {
+  install.packages(packages.needed, dependencies = TRUE, repos = 'http://cran.us.r-project.org')
+}
+
+#devtools::install_github("exploratory-io/exploratory_func")
+
+library(ggplot2)
+library(dplyr)
+library(tibble)
+library(tidyr)
+library(stringr)
+library(tidytext)
+library(topicmodels)
+library(RColorBrewer)
+library(wordcloud)
+library(ggridges)
+library(igraph)
+library(ggraph)
+library(sentimentr)
+library(syuzhet)
+library(broom)
+library(urltools)
+library(exploratory)
+library(ldatuning)
+library(purrr)
+library(CTM)
+library(stm)
+library(corpus)
+library(tm)
+library(quanteda)
+source("../libs/multiplot.R")
+```

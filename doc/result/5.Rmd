@@ -1,0 +1,56 @@
+---
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+#####(a): Counting and filtering n-grams
+```{r setup, include=FALSE}
+library(ggplot2)
+library(dplyr)
+library(tibble)
+library(tidyr)
+library(stringr)
+library(tidytext)
+library(topicmodels)
+library(RColorBrewer)
+library(wordcloud)
+library(ggridges)
+library(igraph)
+library(ggraph)
+library(sentimentr)
+library(syuzhet)
+library(broom)
+library(urltools)
+library(exploratory)
+library(ldatuning)
+library(purrr)
+library(CTM)
+library(stm)
+library(corpus)
+library(tm)
+library(quanteda)
+source("../libs/multiplot.R")
+spooky<-read.csv('../data/spooky.csv',as.is=T)
+bigrams<-unnest_tokens(spooky,bigram, text, token = "ngrams", n = 2)
+bigrams_HPL<-unnest_tokens(spooky[spooky$author=='HPL',],bigram, text, token = "ngrams", n = 2)
+head(bigrams_HPL)
+bigrams_MWS<-unnest_tokens(spooky[spooky$author=='MWS',],bigram, text, token = "ngrams", n = 2)
+head(bigrams_MWS)
+bigrams_EAP<-unnest_tokens(spooky[spooky$author=='EAP',],bigram, text, token = "ngrams", n = 2)
+head(bigrams_EAP)
+```
+
+
+Our usual tidy tools apply equally well to n-gram analysis. We can examine the most common bigrams using dplyr’s count():
+```{r}
+bigrams_count<-count(bigrams,bigram,sort=T)
+head(bigrams_count)
+bigrams_EAP_count<-count(bigrams_EAP,bigram,sort=T)
+head(bigrams_EAP_count)
+bigrams_MWS_count<-count(bigrams_MWS,bigram,sort=T)
+head(bigrams_MWS_count)
+bigrams_HPL_count<-count(bigrams_HPL,bigram,sort=T)
+head(bigrams_HPL_count)
+```
+As one might expect, a lot of the most common bigrams are pairs of common (uninteresting) words, such as of the and in the: what we call “stop-words” . This is a useful time to use tidyr’s separate(), which splits a column into multiple based on a delimiter. This lets us separate it into two columns, “word1” and “word2”, at which point we can remove cases where either is a stop-word.
