@@ -1,7 +1,7 @@
 # Spring2018
 # Project 1: An R Notebook Data Story on Horror Stories
 ----
-![image](figs/raven.png)
+![image](figs/raven.jpeg)
 
 ### Project Description
 This is the first and only *individual* (as opposed to *team*) this semester. 
@@ -22,7 +22,7 @@ Note that in the above, many of the words recognized by their tf-idf scores are 
 
 Base on bigram level
 
-![image](figs/bigram for different author.png)
+![image](figs/bigramfordifferentauthor.png)
 
 Get frequency for phrases based on different authors
 
@@ -31,19 +31,19 @@ In the sentiment analysis part, we want to measure what is the proportion of the
 
 negate word
 
-![image](figs/negate word .png)
+![image](figs/negateword.png)
 
 We can get how words represent the level of sentiment
 
 trajectory of the story
 
-![image](figs/sentiment trajectory of story for different author .png)
+![image](figs/sentimenttrajectoryofstoryfordifferentauthor.png)
 
 We can see how the plot of each author changes toward more positive or negative sentiment over the trajectory of the story.
 
 Base on sentense level do sentiment
 
-![image](figs/sentense level comparision.png)
+![image](figs/sentenselevelcomparision.png)
 
 Poe, Lovecraft, Shelly are positive, neutral, and negative compare to each other.
 
