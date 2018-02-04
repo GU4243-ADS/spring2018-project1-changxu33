@@ -37,13 +37,13 @@ We can get how words represent the level of sentiment
 
 trajectory of the story
 
-![image](figs/sentimenttrajectoryofstoryfordifferentauthor.png)
+![image](figs/sentiment.png)
 
 We can see how the plot of each author changes toward more positive or negative sentiment over the trajectory of the story.
 
 Base on sentense level do sentiment
 
-![image](figs/sentenselevelcomparision.png)
+![image](figs/sentens.png)
 
 Poe, Lovecraft, Shelly are positive, neutral, and negative compare to each other.
 
